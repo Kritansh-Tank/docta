@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { spawnSync } from 'child_process';
-import { resolve } from 'path';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60; // Vercel: allow up to 60s for PDF extraction
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   const formData = await request.formData();
@@ -27,44 +25,46 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const scriptPath = resolve(process.cwd(), 'scripts/extract-text.cjs');
+  let text = '';
+  let pageCount = 1;
 
-  const proc = spawnSync('node', [scriptPath, fileType], {
-    input: buffer,
-    timeout: 45_000,
-    maxBuffer: 50 * 1024 * 1024, // 50 MB output buffer
-  });
-
-  if (proc.error) {
-    console.error('[Docta Extract] spawn error:', proc.error.message);
-    return NextResponse.json({ error: 'Failed to start extraction process' }, { status: 500 });
-  }
-
-  if (proc.status !== 0) {
-    const stderr = proc.stderr?.toString() ?? 'Unknown error';
-    console.error('[Docta Extract] script error:', stderr);
-    return NextResponse.json({ error: `Extraction failed: ${stderr}` }, { status: 500 });
-  }
-
-  let result: { text: string; pageCount: number; wordCount: number };
   try {
-    result = JSON.parse(proc.stdout.toString());
-  } catch {
-    console.error('[Docta Extract] Bad JSON output');
-    return NextResponse.json({ error: 'Extraction produced invalid output' }, { status: 500 });
+    if (fileType === 'pdf') {
+      // pdf-parse is in serverExternalPackages — required at runtime, not bundled by Turbopack
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const pdfParse = require('pdf-parse/lib/pdf-parse.js');
+      const result = await pdfParse(buffer);
+      text = result.text ?? '';
+      pageCount = result.numpages ?? 1;
+    } else if (fileType === 'docx') {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const mammoth = require('mammoth');
+      const result = await mammoth.extractRawText({ buffer });
+      text = result.value ?? '';
+    } else {
+      text = buffer.toString('utf-8');
+    }
+  } catch (err: any) {
+    console.error('[Docta Extract] extraction error:', err.message);
+    return NextResponse.json(
+      { error: `Extraction failed: ${err.message}` },
+      { status: 500 }
+    );
   }
 
-  if (!result.text || result.text.trim().length < 10) {
+  if (!text || text.trim().length < 10) {
     return NextResponse.json(
       { error: 'Could not extract readable text. File may be scanned/image-only.' },
       { status: 422 }
     );
   }
 
+  const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+
   return NextResponse.json({
-    text: result.text,
-    pageCount: result.pageCount,
-    wordCount: result.wordCount,
+    text: text.trim(),
+    pageCount,
+    wordCount,
     fileName: file.name,
     fileType: fileType.toUpperCase(),
   });
