@@ -240,4 +240,4 @@ Docta uses **organization-based login**:
 
 ## License
 
-MIT License — see [LICENSE](./LICENSE.md)
+MIT License - See [LICENSE](./LICENSE.md) file for details
