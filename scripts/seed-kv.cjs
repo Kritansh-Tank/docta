@@ -14,7 +14,20 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const https = require('https');
-require('dotenv').config({ path: path.join(__dirname, '..', '.env.local') });
+
+// Manually read .env.local (no dotenv dependency needed)
+const envFile = path.join(__dirname, '..', '.env.local');
+if (fs.existsSync(envFile)) {
+  for (const line of fs.readFileSync(envFile, 'utf8').split('\n')) {
+    const match = line.match(/^([^#=]+)=(.*)$/);
+    if (match) {
+      const key = match[1].trim();
+      const val = match[2].trim().replace(/^["']|["']$/g, '');
+      if (!process.env[key]) process.env[key] = val;
+    }
+  }
+}
+
 
 const CLI_CONFIG = path.join(os.homedir(), '.lemma', 'config.json');
 const KV_URL = process.env.KV_REST_API_URL;
