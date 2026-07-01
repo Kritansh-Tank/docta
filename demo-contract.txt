@@ -1,0 +1,86 @@
+FREELANCE SOFTWARE DEVELOPMENT AGREEMENT
+
+Agreement Date: June 15, 2026
+Effective Date: July 1, 2026
+Agreement No.: NTL-DEV-2026-047
+Jurisdiction: Gurugram, Haryana, India
+
+This Freelance Software Development Agreement ("Agreement") is entered into as of the date first written above, by and between the following parties:
+
+CLIENT:
+NexaFlow Technologies Pvt. Ltd.
+A private limited company incorporated under the Companies Act, 2013
+CIN: U72900HR2021PTC098312
+Registered Office: 4th Floor, Tower B, Cyber Hub, DLF Phase 2, Gurugram, Haryana – 122 002, India
+(hereinafter referred to as "Client")
+
+— AND —
+
+DEVELOPER:
+Aryan Mehta
+Indian National · PAN: BXKPM7842L
+302, Green Valley Apartments, 5th Cross, Koramangala 4th Block, Bengaluru, Karnataka – 560 034, India
+(hereinafter referred to as "Developer")
+
+WHEREAS, Client desires to engage Developer to provide certain software development services, and Developer is willing to perform such services, on the terms and conditions set forth herein.
+
+NOW, THEREFORE, in consideration of the mutual covenants contained herein, the parties agree as follows:
+
+1. SCOPE OF WORK
+
+Developer agrees to design, develop, test, and deliver a customer analytics dashboard for Client's SaaS platform ("Project"), including backend API integration, real-time data visualization components, and production deployment support, as further detailed in Exhibit A attached hereto. Client may modify the scope of work by written notice, and Developer shall comply with such modifications within timelines reasonably specified by Client.
+
+2. TERM AND RENEWAL
+
+This Agreement shall commence on July 1, 2026 and continue for an initial period of six (6) months. This Agreement shall automatically renew for successive six (6) month periods unless either party provides written notice of non-renewal at least ninety (90) days prior to the expiration of the then-current term. Failure to provide timely notice shall result in automatic renewal and Developer's continued obligation to perform services for the renewed term.
+
+3. COMPENSATION AND PAYMENT
+
+Client shall pay Developer a fixed monthly fee of INR 1,20,000 (Indian Rupees One Lakh Twenty Thousand only), subject to applicable TDS deductions. Developer shall submit invoices on the first business day of each calendar month. Payment shall be made within forty-five (45) days of receipt of invoice. Client reserves the right to withhold, adjust, or offset any payment if, in Client's sole and absolute discretion, deliverables are deemed incomplete, unsatisfactory, or not in conformity with Client's requirements. No interest shall accrue on delayed payments.
+
+4. INTELLECTUAL PROPERTY RIGHTS
+
+All work product, source code, object code, designs, interfaces, documentation, data models, algorithms, and any other materials created, conceived, or developed by Developer in connection with this Agreement — whether or not developed during business hours, and whether or not using Developer's own equipment, tools, or resources — shall be and remain the sole and exclusive property of Client. Developer hereby irrevocably assigns to Client all right, title, and interest in and to all intellectual property rights (including copyright, patents, trade secrets, and moral rights) in such work product, throughout the world, in perpetuity. Developer waives all moral rights to the work product to the fullest extent permitted by law.
+
+5. CONFIDENTIALITY
+
+Developer shall hold in strict confidence all Confidential Information of Client and shall not disclose, copy, or use such information except as required to perform services hereunder. "Confidential Information" means any and all information that Client designates as confidential, or that Developer reasonably should understand to be confidential given the nature of the information, whether or not marked or identified as confidential at the time of disclosure. This obligation shall survive termination of this Agreement for a period of five (5) years.
+
+6. NON-COMPETE RESTRICTION
+
+During the term of this Agreement and for a period of twenty-four (24) months following termination or expiration hereof, Developer shall not, directly or indirectly, engage in, own, manage, operate, join, control, finance, or consult for any person or entity that is competitive with, or substantially similar to, Client's business — anywhere in India, Southeast Asia, the Middle East, or any other jurisdiction where Client operates or has expressed an intention to operate. Developer acknowledges that this restriction is reasonable and necessary to protect Client's legitimate business interests.
+
+7. NON-SOLICITATION
+
+For a period of twenty-four (24) months following termination, Developer shall not, directly or indirectly: (a) solicit, recruit, or hire any employee, contractor, or consultant of Client; or (b) solicit, induce, or encourage any customer, prospective customer, or business partner of Client to terminate or reduce its relationship with Client.
+
+8. LIMITATION OF LIABILITY
+
+IN NO EVENT SHALL CLIENT BE LIABLE TO DEVELOPER FOR ANY INDIRECT, INCIDENTAL, SPECIAL, PUNITIVE, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN CONNECTION WITH THIS AGREEMENT, EVEN IF CLIENT HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES. CLIENT'S TOTAL AGGREGATE LIABILITY TO DEVELOPER UNDER OR IN CONNECTION WITH THIS AGREEMENT SHALL NOT EXCEED INR 10,000 (TEN THOUSAND RUPEES ONLY), regardless of the form or nature of the claim, whether in contract, tort, or otherwise.
+
+9. TERMINATION
+
+Client may terminate this Agreement at any time, for any reason or no reason, upon seven (7) calendar days written notice to Developer. Developer may terminate this Agreement only upon ninety (90) days written notice to Client, provided that Developer completes all in-progress deliverables prior to departure. Upon termination, Developer shall immediately deliver all work product, materials, and Client data to Client. Client shall have no obligation to compensate Developer for work not formally accepted or approved by Client as of the date of termination notice.
+
+10. UNILATERAL AMENDMENT
+
+Client reserves the right to modify or amend the terms of this Agreement at any time upon seven (7) days written notice to Developer. Developer's continued performance of services following the notice period shall constitute Developer's unconditional acceptance of the amended terms. Developer who does not accept the amended terms must provide ninety (90) days notice of termination.
+
+11. INDEPENDENT CONTRACTOR
+
+Developer is an independent contractor and not an employee, agent, partner, or joint venturer of Client. Developer shall be solely responsible for all taxes, insurance, and statutory contributions arising from this engagement.
+
+12. GOVERNING LAW AND DISPUTE RESOLUTION
+
+This Agreement shall be governed by and construed in accordance with the laws of India. Any dispute, controversy, or claim arising out of or in connection with this Agreement shall be subject to the exclusive jurisdiction of the courts of competent jurisdiction in Gurugram, Haryana.
+
+IN WITNESS WHEREOF, the parties have executed this Agreement as of the date first written above.
+
+For and on behalf of Client:
+NexaFlow Technologies Pvt. Ltd.
+Rohan Singhania — Chief Executive Officer
+Date: June 15, 2026
+
+Developer:
+Aryan Mehta
+Date: June 15, 2026
