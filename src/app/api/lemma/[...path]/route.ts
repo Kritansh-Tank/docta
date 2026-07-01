@@ -65,19 +65,27 @@ async function kvSet(key: string, value: string, exSeconds?: number): Promise<vo
 // ─── SuperTokens refresh ──────────────────────────────────────────────────────
 
 async function refreshViaSupertokens(refreshToken: string): Promise<{ access: string; refresh: string | null } | null> {
-  try {
-    // Try both raw and URL-encoded forms
-    for (const tokenValue of [refreshToken, decodeURIComponent(refreshToken)]) {
+  // Try raw first (no encoding), then URL-encoded
+  // HTTP cookies accept +/= without encoding; encodeURIComponent may corrupt the token
+  const attempts = [refreshToken, encodeURIComponent(refreshToken)];
+
+  for (const tokenValue of attempts) {
+    try {
       const resp = await fetch(ST_REFRESH_URL, {
         method: 'POST',
         headers: {
-          'Cookie': `sRefreshToken=${encodeURIComponent(tokenValue)}`,
+          'Cookie': `sRefreshToken=${tokenValue}`,
           'Content-Type': 'application/json',
           'st-auth-mode': 'cookie',
+          'rid': 'anti-csrf',
         },
       });
 
-      if (!resp.ok) continue;
+      const bodyText = await resp.text();
+      if (!resp.ok) {
+        console.warn(`[Docta Proxy] ST refresh attempt failed: ${resp.status} — ${bodyText.slice(0, 200)}`);
+        continue;
+      }
 
       const setCookies: string[] = (resp.headers as any).getSetCookie?.() ?? [resp.headers.get('set-cookie') ?? ''];
       let newAccess: string | null = null;
@@ -91,20 +99,23 @@ async function refreshViaSupertokens(refreshToken: string): Promise<{ access: st
       }
 
       if (!newAccess) {
-        const body = await resp.json().catch(() => null) as any;
-        newAccess = body?.accessToken ?? body?.access_token ?? null;
+        try {
+          const body = JSON.parse(bodyText) as any;
+          newAccess = body?.accessToken ?? body?.access_token ?? null;
+        } catch { /* not JSON */ }
       }
 
       if (newAccess) {
         console.log('[Docta Proxy] ✅ Token refreshed via SuperTokens API');
         return { access: newAccess, refresh: newRefresh };
       }
+    } catch (e: any) {
+      console.error('[Docta Proxy] SuperTokens refresh error:', e.message);
     }
-  } catch (e: any) {
-    console.error('[Docta Proxy] SuperTokens refresh error:', e.message);
   }
   return null;
 }
+
 
 // ─── Token provider ───────────────────────────────────────────────────────────
 
