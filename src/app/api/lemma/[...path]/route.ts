@@ -1,19 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { execSync } from 'child_process';
 
-// Disable SSL verification (Lemma uses self-signed cert in some regions)
+// Lemma uses a self-signed cert in some regions
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
 const LEMMA_BASE = 'https://api.lemma.work';
+const ST_REFRESH_URL = `${LEMMA_BASE}/st/auth/session/refresh`;
 const LEMMA_BIN = process.env.LEMMA_BIN || 'C:\\Users\\tankk\\.local\\bin\\lemma.exe';
+
+// KV mode: set when Vercel KV / Upstash Redis env vars are present
+const KV_URL = process.env.KV_REST_API_URL;
+const KV_TOKEN = process.env.KV_REST_API_TOKEN;
+const USE_KV = !!(KV_URL && KV_TOKEN);
 const IS_VERCEL = !!process.env.VERCEL;
 
+// In-memory cache (works for warm serverless instances and local dev)
 let cachedToken: string = process.env.LEMMA_TOKEN ?? '';
 let tokenFetchedAt = 0;
-let refreshPromise: Promise<string> | null = null; // mutex: one refresh at a time
+let refreshInFlight: Promise<string> | null = null;
 
 // ─── JWT helpers ─────────────────────────────────────────────────────────────
 
@@ -24,39 +33,134 @@ function getTokenExp(token: string): number {
   } catch { return 0; }
 }
 
-function isExpiringSoon(token: string): boolean {
+function isExpiringSoon(token: string, bufferMs = 5 * 60 * 1000): boolean {
   const exp = getTokenExp(token);
-  return !exp || exp - Date.now() < 5 * 60 * 1000; // < 5 min left
+  return !exp || exp - Date.now() < bufferMs;
 }
 
-// ─── Refresh via CLI ─────────────────────────────────────────────────────────
+// ─── Vercel KV REST helpers ───────────────────────────────────────────────────
+
+async function kvGet(key: string): Promise<string | null> {
+  if (!USE_KV) return null;
+  try {
+    const res = await fetch(`${KV_URL}/get/${key}`, {
+      headers: { Authorization: `Bearer ${KV_TOKEN}` },
+    });
+    const json = await res.json() as { result: string | null };
+    return json.result ?? null;
+  } catch { return null; }
+}
+
+async function kvSet(key: string, value: string, exSeconds?: number): Promise<void> {
+  if (!USE_KV) return;
+  try {
+    const query = exSeconds ? `?ex=${exSeconds}` : '';
+    await fetch(`${KV_URL}/set/${key}/${encodeURIComponent(value)}${query}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${KV_TOKEN}` },
+    });
+  } catch { /* non-fatal */ }
+}
+
+// ─── SuperTokens refresh ──────────────────────────────────────────────────────
+
+async function refreshViaSupertokens(refreshToken: string): Promise<{ access: string; refresh: string | null } | null> {
+  try {
+    // Try both raw and URL-encoded forms
+    for (const tokenValue of [refreshToken, decodeURIComponent(refreshToken)]) {
+      const resp = await fetch(ST_REFRESH_URL, {
+        method: 'POST',
+        headers: {
+          'Cookie': `sRefreshToken=${encodeURIComponent(tokenValue)}`,
+          'Content-Type': 'application/json',
+          'st-auth-mode': 'cookie',
+        },
+      });
+
+      if (!resp.ok) continue;
+
+      const setCookies: string[] = (resp.headers as any).getSetCookie?.() ?? [resp.headers.get('set-cookie') ?? ''];
+      let newAccess: string | null = null;
+      let newRefresh: string | null = null;
+
+      for (const c of setCookies) {
+        const aMatch = c.match(/sAccessToken=([^;]+)/);
+        const rMatch = c.match(/sRefreshToken=([^;]+)/);
+        if (aMatch) newAccess = decodeURIComponent(aMatch[1]);
+        if (rMatch) newRefresh = decodeURIComponent(rMatch[1]);
+      }
+
+      if (!newAccess) {
+        const body = await resp.json().catch(() => null) as any;
+        newAccess = body?.accessToken ?? body?.access_token ?? null;
+      }
+
+      if (newAccess) {
+        console.log('[Docta Proxy] ✅ Token refreshed via SuperTokens API');
+        return { access: newAccess, refresh: newRefresh };
+      }
+    }
+  } catch (e: any) {
+    console.error('[Docta Proxy] SuperTokens refresh error:', e.message);
+  }
+  return null;
+}
+
+// ─── Token provider ───────────────────────────────────────────────────────────
 
 async function doRefresh(): Promise<string> {
-  if (IS_VERCEL) {
-    // No CLI on Vercel — use static env token
-    const t = process.env.LEMMA_TOKEN ?? cachedToken;
-    cachedToken = t;
-    tokenFetchedAt = Date.now();
-    return t;
-  }
-
-  try {
-    const fresh = execSync(`"${LEMMA_BIN}" auth print-token`, {
-      encoding: 'utf8',
-      timeout: 20_000,
-      env: { ...process.env, PYTHONHTTPSVERIFY: '0' },
-    }).trim();
-
-    if (/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(fresh) && !isExpiringSoon(fresh)) {
-      cachedToken = fresh;
+  // ── KV mode (Vercel production) ─────────────────────────────────────────
+  if (USE_KV) {
+    // Try cached access token from KV first
+    const kvAccess = await kvGet('lemma:access_token');
+    if (kvAccess && !isExpiringSoon(kvAccess)) {
+      cachedToken = kvAccess;
       tokenFetchedAt = Date.now();
-      console.log('[Docta Proxy] ✅ Token refreshed via CLI');
-      return fresh;
+      return kvAccess;
     }
-    console.warn('[Docta Proxy] CLI returned invalid/expired token, keeping cached');
-  } catch (err: any) {
-    console.error('[Docta Proxy] CLI refresh failed:', err.message);
+
+    // Access token missing/expired → use refresh token from KV
+    const kvRefresh = await kvGet('lemma:refresh_token');
+    if (kvRefresh) {
+      const result = await refreshViaSupertokens(kvRefresh);
+      if (result) {
+        await kvSet('lemma:access_token', result.access, 3300); // 55 min TTL
+        if (result.refresh) await kvSet('lemma:refresh_token', result.refresh);
+        cachedToken = result.access;
+        tokenFetchedAt = Date.now();
+        return result.access;
+      }
+    }
+
+    // KV refresh failed → fall through to env var
+    console.warn('[Docta Proxy] KV refresh failed, using LEMMA_TOKEN env var');
+    const envToken = process.env.LEMMA_TOKEN ?? cachedToken;
+    cachedToken = envToken;
+    tokenFetchedAt = Date.now();
+    return envToken;
   }
+
+  // ── CLI mode (local dev) ────────────────────────────────────────────────
+  if (!IS_VERCEL && LEMMA_BIN) {
+    try {
+      const fresh = execSync(`"${LEMMA_BIN}" auth print-token`, {
+        encoding: 'utf8',
+        timeout: 20_000,
+        env: { ...process.env, PYTHONHTTPSVERIFY: '0' },
+      }).trim();
+
+      if (/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(fresh) && !isExpiringSoon(fresh)) {
+        cachedToken = fresh;
+        tokenFetchedAt = Date.now();
+        console.log('[Docta Proxy] ✅ Token refreshed via CLI');
+        return fresh;
+      }
+      console.warn('[Docta Proxy] CLI returned invalid/expired token');
+    } catch (err: any) {
+      console.error('[Docta Proxy] CLI refresh failed:', err.message);
+    }
+  }
+
   return cachedToken;
 }
 
@@ -68,11 +172,11 @@ async function getFreshToken(): Promise<string> {
 
   if (!needsRefresh) return cachedToken;
 
-  // Mutex: if already refreshing, wait for the same promise
-  if (!refreshPromise) {
-    refreshPromise = doRefresh().finally(() => { refreshPromise = null; });
+  // Mutex: one refresh at a time
+  if (!refreshInFlight) {
+    refreshInFlight = doRefresh().finally(() => { refreshInFlight = null; });
   }
-  return refreshPromise;
+  return refreshInFlight;
 }
 
 // ─── HTTP verbs ───────────────────────────────────────────────────────────────
@@ -122,29 +226,27 @@ async function proxy(request: NextRequest, params: { path: string[] }) {
     return NextResponse.json({ error: 'Proxy fetch failed' }, { status: 502 });
   }
 
-  // On 401: force re-refresh and retry once
+  // On 401: force full re-fetch and retry once
   if (response.status === 401) {
-    console.warn('[Docta Proxy] 401 received — forcing token re-refresh');
+    console.warn('[Docta Proxy] 401 — forcing token refresh...');
     tokenFetchedAt = 0;
     cachedToken = '';
-    const newToken = await getFreshToken();
-    headers['Authorization'] = `Bearer ${newToken}`;
+    headers['Authorization'] = `Bearer ${await getFreshToken()}`;
     try {
       response = await fetch(targetUrl, { method: request.method, headers, body });
     } catch (retryErr) {
-      console.error('[Docta Proxy] retry fetch failed:', retryErr);
+      console.error('[Docta Proxy] retry failed:', retryErr);
       return NextResponse.json({ error: 'Proxy retry failed' }, { status: 502 });
     }
   }
 
-  // 204 No Content — Response spec forbids a body
   if (response.status === 204) {
     return new NextResponse(null, { status: 204 });
   }
 
   const resBody = await response.text();
   const resHeaders = new Headers();
-  ['content-type', 'cache-control', 'etag'].forEach((h) => {
+  ['content-type', 'cache-control', 'etag'].forEach(h => {
     const v = response.headers.get(h);
     if (v) resHeaders.set(h, v);
   });
