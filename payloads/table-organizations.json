@@ -1,0 +1,9 @@
+{
+  "columns": [
+    { "name": "name", "type": "TEXT" },
+    { "name": "domain", "type": "TEXT" },
+    { "name": "plan", "type": "TEXT" },
+    { "name": "owner_user_id", "type": "TEXT" }
+  ],
+  "enable_rls": false
+}

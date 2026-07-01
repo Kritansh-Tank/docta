@@ -1,0 +1,68 @@
+{
+  "name": "analyze-document",
+  "description": "3-agent pipeline: extracts clauses, assesses risk, generates negotiation advice.",
+  "start": { "type": "MANUAL" },
+  "nodes": [
+    {
+      "id": "intake",
+      "type": "FORM",
+      "label": "Intake",
+      "config": {
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "document_text": { "type": "string" },
+            "doc_title": { "type": "string" }
+          },
+          "required": ["document_text"]
+        }
+      }
+    },
+    {
+      "id": "clause_extractor",
+      "type": "AGENT",
+      "label": "Extract Clauses",
+      "config": {
+        "agent_name": "clause-extractor",
+        "input_mapping": {
+          "document_text": { "type": "expression", "value": "intake.document_text" },
+          "doc_title": { "type": "expression", "value": "intake.doc_title" }
+        }
+      }
+    },
+    {
+      "id": "risk_assessor",
+      "type": "AGENT",
+      "label": "Assess Risk",
+      "config": {
+        "agent_name": "risk-assessor",
+        "input_mapping": {
+          "clauses_json": { "type": "expression", "value": "clause_extractor.answer" }
+        }
+      }
+    },
+    {
+      "id": "negotiation_advisor",
+      "type": "AGENT",
+      "label": "Negotiation Advice",
+      "config": {
+        "agent_name": "negotiation-advisor",
+        "input_mapping": {
+          "risk_assessment_json": { "type": "expression", "value": "risk_assessor.answer" }
+        }
+      }
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "label": "Done"
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "intake", "target": "clause_extractor" },
+    { "id": "e2", "source": "clause_extractor", "target": "risk_assessor" },
+    { "id": "e3", "source": "risk_assessor", "target": "negotiation_advisor" },
+    { "id": "e4", "source": "negotiation_advisor", "target": "end" }
+  ],
+  "visibility": "POD"
+}

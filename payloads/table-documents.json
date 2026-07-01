@@ -1,0 +1,14 @@
+{
+  "columns": [
+    { "name": "org_id", "type": "TEXT" },
+    { "name": "title", "type": "TEXT" },
+    { "name": "file_name", "type": "TEXT" },
+    { "name": "file_type", "type": "TEXT" },
+    { "name": "content_text", "type": "TEXT" },
+    { "name": "status", "type": "TEXT" },
+    { "name": "uploaded_by", "type": "TEXT" },
+    { "name": "page_count", "type": "INTEGER" },
+    { "name": "word_count", "type": "INTEGER" }
+  ],
+  "enable_rls": false
+}

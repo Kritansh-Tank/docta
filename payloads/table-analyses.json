@@ -1,0 +1,18 @@
+{
+  "columns": [
+    { "name": "document_id", "type": "TEXT" },
+    { "name": "org_id", "type": "TEXT" },
+    { "name": "risk_score", "type": "INTEGER" },
+    { "name": "risk_level", "type": "TEXT" },
+    { "name": "doc_type", "type": "TEXT" },
+    { "name": "parties", "type": "TEXT" },
+    { "name": "clauses", "type": "TEXT" },
+    { "name": "red_flags", "type": "TEXT" },
+    { "name": "missing_clauses", "type": "TEXT" },
+    { "name": "summary", "type": "TEXT" },
+    { "name": "recommendations", "type": "TEXT" },
+    { "name": "overall_recommendation", "type": "TEXT" },
+    { "name": "next_steps", "type": "TEXT" }
+  ],
+  "enable_rls": false
+}
