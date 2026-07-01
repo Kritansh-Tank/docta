@@ -10,7 +10,7 @@ export default function SettingsPage() {
 
   const handleSave = () => {
     if (orgName.trim()) {
-      setOrg({ ...org, name: orgName.trim() });
+      setOrg({ ...org, id: org?.id ?? '', name: orgName.trim() });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     }
