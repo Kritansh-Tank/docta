@@ -30,31 +30,27 @@ export async function POST(request: NextRequest) {
 
   try {
     if (fileType === 'pdf') {
-      text = await extractPdfText(buffer);
-      // Count pages via a quick scan
-      const matches = buffer.toString('binary').match(/\/Page\b/g);
-      pageCount = matches ? Math.max(1, Math.floor(matches.length / 2)) : 1;
-
+      const extracted = await extractPdf(buffer);
+      text = extracted.text;
+      pageCount = extracted.pageCount;
     } else if (fileType === 'docx') {
+      // mammoth is in serverExternalPackages — safe to require at runtime
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const mammoth = require('mammoth');
       const result = await mammoth.extractRawText({ buffer });
       text = result.value ?? '';
-
     } else {
+      // Plain text
       text = buffer.toString('utf-8');
     }
   } catch (err: any) {
-    console.error('[Docta Extract] extraction error:', err.message);
-    return NextResponse.json(
-      { error: `Extraction failed: ${err.message}` },
-      { status: 500 }
-    );
+    console.error('[Docta Extract] error:', err.message);
+    return NextResponse.json({ error: `Extraction failed: ${err.message}` }, { status: 500 });
   }
 
   if (!text || text.trim().length < 10) {
     return NextResponse.json(
-      { error: 'Could not extract readable text. Try a .txt or .docx file if using a scanned PDF.' },
+      { error: 'Could not extract readable text. File may be scanned/image-only.' },
       { status: 422 }
     );
   }
@@ -70,50 +66,37 @@ export async function POST(request: NextRequest) {
   });
 }
 
-// ─── PDF extraction: pdfjs-dist first, pdf-parse fallback ────────────────────
+// ─── PDF extraction via pdfjs-dist v3 (legacy CommonJS build) ────────────────
+// pdfjs-dist is in serverExternalPackages so it is NOT bundled by Turbopack.
+// The require() here is resolved at runtime from node_modules — no build-time
+// static analysis issues.
 
-async function extractPdfText(buffer: Buffer): Promise<string> {
-  // Method 1: pdfjs-dist (handles modern Chrome-printed PDFs well)
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
-    pdfjsLib.GlobalWorkerOptions.workerSrc = ''; // server-side: no worker
+async function extractPdf(buffer: Buffer): Promise<{ text: string; pageCount: number }> {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+  // Disable worker for server-side execution
+  pdfjsLib.GlobalWorkerOptions.workerSrc = '';
 
-    const uint8 = new Uint8Array(buffer);
-    const loadingTask = pdfjsLib.getDocument({ data: uint8, useWorkerFetch: false, isEvalSupported: false, useSystemFonts: true });
-    const pdfDoc = await loadingTask.promise;
+  const loadingTask = pdfjsLib.getDocument({
+    data: new Uint8Array(buffer),
+    useWorkerFetch: false,
+    isEvalSupported: false,
+    useSystemFonts: true,
+    verbosity: 0,
+  });
 
-    let fullText = '';
-    for (let i = 1; i <= pdfDoc.numPages; i++) {
-      const page = await pdfDoc.getPage(i);
-      const content = await page.getTextContent();
-      const pageText = (content.items as any[])
-        .map((item: any) => item.str ?? '')
-        .join(' ');
-      fullText += pageText + '\n';
-    }
+  const pdfDoc = await loadingTask.promise;
+  const numPages: number = pdfDoc.numPages;
+  let fullText = '';
 
-    if (fullText.trim().length > 10) {
-      console.log(`[Docta Extract] pdfjs-dist extracted ${fullText.trim().length} chars`);
-      return fullText;
-    }
-  } catch (e: any) {
-    console.warn('[Docta Extract] pdfjs-dist failed:', e.message);
+  for (let i = 1; i <= numPages; i++) {
+    const page = await pdfDoc.getPage(i);
+    const content = await page.getTextContent();
+    const pageText = (content.items as Array<{ str?: string }>)
+      .map(item => item.str ?? '')
+      .join(' ');
+    fullText += pageText + '\n';
   }
 
-  // Method 2: pdf-parse fallback
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfParse = require('pdf-parse/lib/pdf-parse.js');
-    const result = await pdfParse(buffer);
-    const t = result.text ?? '';
-    if (t.trim().length > 10) {
-      console.log(`[Docta Extract] pdf-parse extracted ${t.trim().length} chars`);
-      return t;
-    }
-  } catch (e: any) {
-    console.warn('[Docta Extract] pdf-parse failed:', e.message);
-  }
-
-  return '';
+  return { text: fullText, pageCount: numPages };
 }
