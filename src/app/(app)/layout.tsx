@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { LayoutDashboard, Upload, Settings, Shield } from 'lucide-react';
 import { useLemma } from '@/components/LemmaProvider';
 
@@ -12,7 +13,17 @@ const NAV = [
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { org } = useLemma();
+  const router = useRouter();
+  const { org, isReady } = useLemma();
+
+  useEffect(() => {
+    if (isReady && !org) {
+      router.replace('/onboarding');
+    }
+  }, [isReady, org, router]);
+
+  // Show nothing while validating org (avoids flash of wrong content)
+  if (!isReady || !org) return null;
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>

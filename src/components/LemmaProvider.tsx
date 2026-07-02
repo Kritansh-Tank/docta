@@ -23,19 +23,32 @@ export function LemmaProvider({ children }: { children: ReactNode }) {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    // Restore org from localStorage
-    const savedOrgId = localStorage.getItem(LS_ORG_KEY);
+    const savedOrgId   = localStorage.getItem(LS_ORG_KEY);
     const savedOrgName = localStorage.getItem(LS_ORG_NAME_KEY);
-    if (savedOrgId) {
-      setOrgState({ id: savedOrgId, name: savedOrgName ?? '' });
-    }
 
-    // Load current user (best-effort)
+    // Load user, then validate the cached org still exists in the datastore
     lemmaClient.users.current().then((u: any) => {
       setUser(u);
     }).catch(() => {
-      // Not authed via SuperTokens — that's fine, proxy handles auth
-    }).finally(() => {
+      // proxy handles auth — ignore
+    }).finally(async () => {
+      if (savedOrgId) {
+        try {
+          // Verify the org record still exists
+          const records = await lemmaClient.records.list('organizations');
+          const stillExists = (records as any[]).some((r: any) => r.id === savedOrgId);
+          if (stillExists) {
+            setOrgState({ id: savedOrgId, name: savedOrgName ?? '' });
+          } else {
+            // Org was deleted from pod — clear stale cache
+            localStorage.removeItem(LS_ORG_KEY);
+            localStorage.removeItem(LS_ORG_NAME_KEY);
+          }
+        } catch {
+          // If we can't validate (network error), trust the cache
+          setOrgState({ id: savedOrgId, name: savedOrgName ?? '' });
+        }
+      }
       setIsReady(true);
     });
   }, []);
