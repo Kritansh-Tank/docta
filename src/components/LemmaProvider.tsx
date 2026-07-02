@@ -36,7 +36,7 @@ export function LemmaProvider({ children }: { children: ReactNode }) {
         try {
           // Verify the org record still exists
           const records = await lemmaClient.records.list('organizations');
-          const stillExists = (records as any[]).some((r: any) => r.id === savedOrgId);
+          const stillExists = (records as unknown as any[]).some((r: any) => r.id === savedOrgId);
           if (stillExists) {
             setOrgState({ id: savedOrgId, name: savedOrgName ?? '' });
           } else {
