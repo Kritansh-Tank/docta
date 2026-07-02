@@ -34,13 +34,11 @@ export async function POST(request: NextRequest) {
       text = extracted.text;
       pageCount = extracted.pageCount;
     } else if (fileType === 'docx') {
-      // mammoth is in serverExternalPackages — safe to require at runtime
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const mammoth = require('mammoth');
       const result = await mammoth.extractRawText({ buffer });
       text = result.value ?? '';
     } else {
-      // Plain text
       text = buffer.toString('utf-8');
     }
   } catch (err: any) {
@@ -66,37 +64,37 @@ export async function POST(request: NextRequest) {
   });
 }
 
-// ─── PDF extraction via pdfjs-dist v3 (legacy CommonJS build) ────────────────
-// pdfjs-dist is in serverExternalPackages so it is NOT bundled by Turbopack.
-// The require() here is resolved at runtime from node_modules — no build-time
-// static analysis issues.
+// ─── PDF extraction ───────────────────────────────────────────────────────────
+// Uses unpdf — a serverless-safe PDF extractor built on top of PDF.js
+// Does NOT require canvas or any native modules, works in Vercel Lambda
 
 async function extractPdf(buffer: Buffer): Promise<{ text: string; pageCount: number }> {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
-  // Disable worker for server-side execution
-  pdfjsLib.GlobalWorkerOptions.workerSrc = '';
-
-  const loadingTask = pdfjsLib.getDocument({
-    data: new Uint8Array(buffer),
-    useWorkerFetch: false,
-    isEvalSupported: false,
-    useSystemFonts: true,
-    verbosity: 0,
-  });
-
-  const pdfDoc = await loadingTask.promise;
-  const numPages: number = pdfDoc.numPages;
-  let fullText = '';
-
-  for (let i = 1; i <= numPages; i++) {
-    const page = await pdfDoc.getPage(i);
-    const content = await page.getTextContent();
-    const pageText = (content.items as Array<{ str?: string }>)
-      .map(item => item.str ?? '')
-      .join(' ');
-    fullText += pageText + '\n';
+  try {
+    // unpdf is ESM — use dynamic import
+    const { extractText } = await import('unpdf');
+    const uint8 = new Uint8Array(buffer);
+    const { totalPages, text } = await extractText(uint8, { mergePages: true });
+    console.log(`[Docta Extract] unpdf extracted ${text?.length ?? 0} chars from ${totalPages} pages`);
+    if (text && text.trim().length > 10) {
+      return { text, pageCount: totalPages };
+    }
+  } catch (e: any) {
+    console.warn('[Docta Extract] unpdf failed:', e.message);
   }
 
-  return { text: fullText, pageCount: numPages };
+  // Fallback: pdf-parse (lib entry avoids test-file loading issues)
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pdfParse = require('pdf-parse/lib/pdf-parse.js');
+    const result = await pdfParse(buffer);
+    const t: string = result.text ?? '';
+    console.log(`[Docta Extract] pdf-parse extracted ${t.trim().length} chars`);
+    if (t.trim().length > 10) {
+      return { text: t, pageCount: result.numpages ?? 1 };
+    }
+  } catch (e: any) {
+    console.warn('[Docta Extract] pdf-parse failed:', e.message);
+  }
+
+  return { text: '', pageCount: 1 };
 }
